@@ -1,0 +1,161 @@
+buildscript {
+    repositories {
+        maven {
+            url "https://tr1.jfrog.io/tr1/libs-release/"
+            credentials {
+                username System.getenv("ARTIFACTORY_USER")
+                password System.getenv("ARTIFACTORY_TOKEN")
+            }
+        }
+        maven {
+            url "https://tr1.jfrog.io/tr1/generic-local/"
+            credentials {
+                username System.getenv("ARTIFACTORY_USER")
+                password System.getenv("ARTIFACTORY_TOKEN")
+            }
+        }
+        maven { url "https://plugins.gradle.org/m2/" }
+    }
+    dependencies {
+        classpath("gradle.plugin.com.chrisgahlert:gradle-dcompose-plugin:0.9.0")
+    }
+}
+
+apply plugin: 'java'
+apply plugin: 'groovy'
+apply plugin: 'codenarc'
+
+group 'com.tr.gcs'
+version '1.0'
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+task buildJar(type: Jar) {
+    manifest {
+        attributes(
+                'Implementation-Title': 'Gradle Jar File',
+                'Implementation-Version': version,
+                'Main-Class': 'com.tr.gcs.RenditionClient'
+        )
+    }
+    baseName = project.name
+    from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+    with jar
+}
+
+def artifactoryUser = System.getenv("ARTIFACTORY_USER")
+def artifactoryToken = System.getenv("ARTIFACTORY_TOKEN")
+repositories {
+    mavenLocal()
+    maven {
+        url "https://tr1.jfrog.io/tr1/libs-release/"
+        credentials {
+            username artifactoryUser
+            password artifactoryToken
+        }
+    }
+    maven {
+        url "https://tr1.jfrog.io/tr1/generic-local/"
+        credentials {
+            username artifactoryUser
+            password artifactoryToken
+        }
+    }
+}
+
+dependencies {
+    compile('org.codehaus.groovy:groovy-all:2.5.6')
+
+    compile(group: 'com.fasterxml.jackson.datatype', name: 'jackson-datatype-jsr310', version: '2.11.2')
+
+    compile(group: 'com.amazonaws', name: 'amazon-sqs-java-messaging-lib', version: '1.0.8')
+    compile(group: 'software.amazon.awssdk', name: 'sqs', version: '2.7.26')
+
+    implementation("org.apache.commons:commons-compress:1.18")
+    compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.8.1'
+    compile(group: 'commons-io', name: 'commons-io', version: '2.5')
+
+    compile("com.squareup.okhttp3:okhttp:3.14.1")
+
+    // https://mvnrepository.com/artifact/log4j/log4j
+    compile group: 'log4j', name: 'log4j', version: '1.2.17'
+
+    //Tests
+    testCompile(
+            "org.mockito:mockito-core:2.24.5",
+            'org.mockito:mockito-junit-jupiter:2.18.3',
+            'org.junit.jupiter:junit-jupiter-api:5.3.2'
+    )
+    testRuntime(
+            'org.junit.jupiter:junit-jupiter-engine:5.3.2'
+    )
+}
+
+test {
+    useJUnitPlatform()
+}
+
+codenarc {
+    toolVersion = "1.3"
+}
+codenarcMain {
+    dependsOn(compileJava, compileGroovy)
+    ignoreFailures false
+    configFile file('codenarc/codenarc-main.rules')
+    reports {
+        text {
+            enabled = true
+        }
+    }
+
+    finalizedBy {
+        writeCodenarcMainFailures
+    }
+}
+
+task writeCodenarcMainFailures {
+    doLast {
+        println "****************************** CODE NARC MAIN ******************************"
+        File codeNarcFile = file("build/reports/codenarc/main.txt")
+        if (codeNarcFile.exists())
+        {
+            println codeNarcFile.getText()
+        }
+        else
+        {
+            println "No codenarc violations found in main code"
+        }
+        println "****************************** CODE NARC MAIN ******************************"
+    }
+}
+
+codenarcTest {
+    dependsOn(compileTestJava, compileTestGroovy)
+    ignoreFailures false
+    configFile file('codenarc/codenarc-test.rules')
+    reports {
+        text {
+            enabled = true
+        }
+    }
+    finalizedBy {
+        writeCodenarcTestFailures
+    }
+}
+
+task writeCodenarcTestFailures {
+    doLast {
+        println "****************************** CODE NARC TEST ******************************"
+        File codeNarcFile = file("build/reports/codenarc/test.txt")
+        if (codeNarcFile.exists())
+        {
+            println codeNarcFile.getText()
+        }
+        else
+        {
+            println "No codenarc violations found in test code"
+        }
+        println "****************************** CODE NARC TEST ******************************"
+    }
+}
